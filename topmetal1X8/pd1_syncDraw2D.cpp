@@ -297,8 +297,8 @@ closedir(dir);//关闭目录指针
     cout << "" <<endl;
 /////end of begin of refresh dir
 
-  }  //for(int j=0;j<idList.size();j++) 	
-	} //if(fileId <= idList[j]) 
+  }  //if(fileId <= idList[j])
+	} //for(int j=0;j<idList.size();j++) 	
 
 return 0;
 }//main()
