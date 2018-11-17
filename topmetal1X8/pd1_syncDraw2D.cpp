@@ -136,7 +136,7 @@ vector<int> idList;
 
 		for(int i=0;i<pd1.nFrame();i++)
 		{
-			cout<<i<<endl;
+			//cout<<i<<endl;			
 			pd1.getFrame(i, 0); // 输入帧数和adc通道数，不加adc通道数这个参数，会获取所有通道的数据
 			//sprintf(str, "frame %d", i);
 			sprintf(str, "xbeam_%d.pd1 frame %d",fileId,i);
@@ -202,7 +202,7 @@ vector<int> idList;
 					else
 					{	
 						change_frame: i = i + Key_input;
-						cout<<i<<endl;
+						//cout<<i<<endl;						
 						pd1.getFrame(i, 0); // 输入帧数和adc通道数，不加adc通道数这个参数，会获取所有通道的数据
 						//sprintf(str, "frame %d",i);
 						sprintf(str, "xbeam_%d.pd1 frame %d",fileId,i);
