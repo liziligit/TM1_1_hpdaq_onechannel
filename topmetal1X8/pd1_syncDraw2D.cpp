@@ -52,14 +52,14 @@ char *pedefile;
 pedefile = argv[3];
 int pedeId;
 pedeId = atol(argv[4]);
-// double maxPixelSignal;
-// maxPixelSignal = atof(argv[5]);
-// double minPixelSignal;
-// minPixelSignal = atof(argv[6]);
-// int ip;
-// ip = atoi(argv[7]);
+double maxPixelSignal;
+maxPixelSignal = atof(argv[5]);
+double minPixelSignal;
+minPixelSignal = atof(argv[6]);
+int ip;
+ip = atoi(argv[7]);
 char *store_file_name;
-store_file_name = argv[5];
+store_file_name = argv[8];
 
 int Key_input;
 char str[30];
@@ -118,9 +118,9 @@ vector<int> idList;
 /////end of "get beamId in to list"
     int nCh=1;
     plot pt;
-    pt.setupCanvas(nCh,1, 2018, 720, 720);//设置canvas上图片的行数，列数, 及 canvas的位置
+    pt.setupCanvas(nCh,1, ip, 360, 360);//设置canvas上图片的行数，列数, 及 canvas的位置
     pt.setup2D(nCh,1,72,72,"hist2d"); 
-    pt.setup2DMinMax(-10,10);
+    pt.setup2DMinMax(minPixelSignal,maxPixelSignal);
     int ch;
 
   change_pd1: for(int j=0;j<idList.size();j++)

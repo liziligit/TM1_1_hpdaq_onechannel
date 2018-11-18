@@ -25,4 +25,4 @@ sleep 1
 sleep 1
 ./runData.sh 1 4 s ${store_file_name}
 sleep 1 
-./pd1SyncDraw2D.sh 1 1 ${store_file_name}
+./pd1SyncDraw2D.sh 1 1 -10 10 1 ${store_file_name}
