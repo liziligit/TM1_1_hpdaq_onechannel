@@ -1,4 +1,5 @@
-read  -p "请输入存储文件夹名(按n退出)：" store_file_name
+: '
+#read  -p "请输入存储文件夹名(按n退出)：" store_file_name
 
 #--------------------------------------------
 # set default store_file_name
@@ -14,6 +15,9 @@ N|n|NO|no)
 "")  #Autocontinue
   break;;
 esac
+'
+
+
 
 ./initiTm2-.sh 0.78 0.62
 sleep 1
@@ -23,6 +27,7 @@ sleep 1
 sleep 1
 ./pede.sh 1
 sleep 1
-./runData.sh 1 4 s ${store_file_name}
+./runData.sh 1 5 s 1120alphahv600
 sleep 1 
-./pd1SyncDraw2D.sh 1 1 -10 10 1 ${store_file_name}
+./pd1SyncDraw2D.sh 1 1 -10 10 1 1120alphahv600
+
