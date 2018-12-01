@@ -8,7 +8,8 @@
 #include <TH2D.h>
 #include <TCanvas.h>
 #include <TSystem.h>
-#include "rootlib.h"
+//#include "rootlib2.h"
+#include "../topmetal1X8/rootlib.h"
 // #include <io.h>
 
 
@@ -20,13 +21,16 @@ int main(int argc, char **argv){
 	cha = atol(argv[2]);
 	int dataSet;
 	dataSet = atol(argv[3]);
+	char *store_file_name;
+	store_file_name = argv[4];
 
 const int NN=1;
 
 placData_1 pd1[NN];
 char fn[200];
 
-sprintf(fn,"../data/out%d.pd1",dataSet);
+//sprintf(fn,"../data/runData/%s/xbeam_%d.pd1",dataSet);
+sprintf(fn,"../data/runData/%s/xbeam_%d.pd1",store_file_name,dataSet);
 pd1[0].read((char*)fn);
 
 //pd1[i].getPixDat(3,10);
@@ -39,7 +43,8 @@ int j=pix;
 
 /////////////////////////设置canvas
 plot pt;
-pt.setupCanvas(2,2); //设置canvas上图片的行数，列数
+//pt.setupCanvas(2,2); //设置canvas上图片的行数，列数
+pt.setupCanvas(2,2,1,1600,800); //设置canvas上图片的行数，列数
 
 
 
@@ -132,8 +137,8 @@ pt.c->cd(3);
 
 /////////////////////////////////
 
-pt.c->SaveAs("a.jpg");
-
+//pt.c->SaveAs("a.jpg");
+pt.c->SaveAs(TString::Format("../data/runData/%s/decay_%s_%d_pix%d.png", store_file_name,store_file_name,dataSet,pix));
 
 cout<<"end"<<endl;
 

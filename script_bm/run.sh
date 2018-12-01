@@ -25,9 +25,9 @@ sleep 1
 sleep 1
 ./debugTm2-.sh
 sleep 1
-./pede.sh 1
+./pede.sh 3
 sleep 1
-./runData.sh 1 5 s 1120alphahv600
+./runData.sh 1 5 s test
 sleep 1 
-./pd1SyncDraw2D.sh 1 1 -10 10 1 1120alphahv600
+./pd1SyncDraw2D.sh 1 3 -10 10 1 test
 
