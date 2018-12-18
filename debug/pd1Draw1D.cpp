@@ -128,7 +128,7 @@ double dt=5184*(16.0/25.0)*1e-6;
    ma[0]=0;
    TGraph *gr = new TGraph(n/2,x,ma);
    gr->SetName("noise power spectrum");
-pt.c->cd(3);
+   pt.c->cd(3);
    gr->Draw();	
 
 
