@@ -116,6 +116,7 @@ vector<int> idList;
     }
     cout << "" <<endl;
 /////end of "get beamId in to list"
+    //int nCh=pd1.adcCha();
     int nCh=1;
     plot pt;
     pt.setupCanvas(nCh,1, ip, 360, 360);//设置canvas上图片的行数，列数, 及 canvas的位置
@@ -142,7 +143,16 @@ vector<int> idList;
 			sprintf(str, "xbeam_%d.pd1 frame %d",fileId,i);
 			pede.subPede(pd1.frameDat, 0);  //subtract pede 不加第二个参数，会操作所有通道的数据
 			pt.h2[0]->SetTitle(str);
-			pt.loadData2Hist2D(pd1.frameDat+k*72*72,nCh-k-1);
+
+			for(int k=0;k<nCh;k++){
+			if(k<nCh/2){
+				pt.loadData2Hist2D(pd1.frameDat+k*72*72,k+nCh/2);
+			}else{
+				pt.loadData2Hist2D(pd1.frameDat+k*72*72,nCh-k-1);	
+				}
+			}
+
+			//pt.loadData2Hist2D(pd1.frameDat+k*72*72,nCh-k-1);
 			pt.draw2D(); 
 
 			if(kbhit()) 
@@ -208,7 +218,16 @@ vector<int> idList;
 						sprintf(str, "xbeam_%d.pd1 frame %d",fileId,i);
 						pede.subPede(pd1.frameDat, 0);  //subtract pede 不加第二个参数，会操作所有通道的数据
 						pt.h2[0]->SetTitle(str);
-						pt.loadData2Hist2D(pd1.frameDat+k*72*72,nCh-k-1);
+
+						for(int k=0;k<nCh;k++){
+						if(k<nCh/2){
+							pt.loadData2Hist2D(pd1.frameDat+k*72*72,k+nCh/2);
+						}else{
+							pt.loadData2Hist2D(pd1.frameDat+k*72*72,nCh-k-1);	
+							}
+						}
+
+						//pt.loadData2Hist2D(pd1.frameDat+k*72*72,nCh-k-1);
 						pt.draw2D();
 						scanf("%d", &Key_input);
 						if( Key_input == 0 )

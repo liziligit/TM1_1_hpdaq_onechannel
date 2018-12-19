@@ -25,9 +25,9 @@ sleep 1
 sleep 1
 ./debugTm2-.sh
 sleep 1
-./pede.sh 6
+./pede.sh 7
 sleep 1
-./runData.sh 1 5 s decay6
+./runData.sh 1 3 s sigdisturb
 sleep 1 
-./pd1SyncDraw2D.sh 1 3 -10 10 1 test
+./pd1SyncDraw2D.sh 1 7 -10 10 1 sigdisturb
 
