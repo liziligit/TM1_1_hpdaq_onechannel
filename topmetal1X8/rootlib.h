@@ -9535,6 +9535,564 @@ void displayInterfaceUpdate(char *pedeFile, char *fn, double maxPixelSignal, dou
 
 } 
    
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////new for pd1 test, begin of function:beamPosFit_pd1/////////////////////////
+
+void beamPosFit_pd1(char *pedeFile, int ich, int iframe, double upLimit, double lowLimit)
+   {
+        pd1Pede pede;
+        pede.setup(pedeFile); 
+ 
+	gStyle->SetOptStat(0);
+	gStyle->SetOptFit(1);
+
+	int nTopMetalChips=pd1.adcCha();
+	int nPixelsOnChip=pd1.nPix();        
+        int nFrames=pd1.nFrame();
+        
+
+	double rowSum;
+	double pixelValue;
+	double pixelMean;
+	double pixelSigma2;
+    //double upLimit = 100;
+	//double lowLimit = 0;
+	double pitch = 83;
+	double b;
+	double k;
+
+	double di;
+	double pointX, pointY; 
+	double diMean=0;
+	double diRMS=0;
+	double resol=0;
+	double resolMean=0;
+	double resolRMS=0;
+
+
+        pd1.getChaDat(ich);
+        double adc_value;
+        int binX;
+        int binY;
+
+
+
+
+
+
+
+	TString hist2dName;
+        hist2dName = "hAdc2dMap_iframe"; hist2dName += iframe;
+        TH2D *hAdc2dMap= new TH2D(hist2dName, "pd1 ADC 2d Map;pixel row index;pixel column index", 72, 0, 72, 72, 0, 72);
+
+
+/////////////////////////////////////////////////////////////////////////////
+/*
+        for(int ipixel=0;ipixel<pd1.nPix();ipixel++){        
+            binX = ipixel/72;
+            binY = ipixel%72;
+            adc_value=pd1.chaDat[ipixel*pd1.nFrame()+iframe];            
+            hAdc2dMap->SetBinContent(binX+1,binY+1,adc_value);            
+        }
+*/
+ /////////////////////////////////////////////////////////////////////////////
+        
+/////////////////////////////////////////////////////////////////////////////
+        for(int ipixel=0;ipixel<pd1.nPix();ipixel++){        
+            binX = ipixel/72;
+            binY = ipixel%72;
+           adc_value = 0;
+            for(int isample=0;isample<pd1.samPerPix();isample++){
+                adc_value+=pd1.chaDat[iframe*pd1.samPerPix()*pd1.nPix()+ipixel*pd1.samPerPix()+isample];
+            }
+            adc_value/=(double)pd1.samPerPix();
+            adc_value-=pede.meanPed[ich*pd1.nPix()+ipixel];  
+            // if(adc_value<0){
+            // 	adc_value=0;
+            // }     
+            //cout<<adc_value<<endl;   
+            hAdc2dMap->SetBinContent(binX+1,binY+1,adc_value);            
+        }
+////////////////////////////////////////////////////////////////////////////
+
+
+
+	TGraphErrors ge;
+	TGraphErrors geRota;	
+	int iPoint=0;
+        for(int irow = 1; irow < 71; irow++){
+        	rowSum = 0;
+		pixelMean = 0;
+		pixelSigma2 =0;
+         for(int icol = 0; icol < 72; icol++){
+		pixelValue = hAdc2dMap->GetBinContent(icol+1, irow+1);
+	      if(pixelValue<upLimit & pixelValue>lowLimit){
+		rowSum = rowSum + pixelValue;		
+		}			
+		}
+	    for(int icol = 0; icol<72; icol++){
+		pixelValue = hAdc2dMap->GetBinContent(icol+1, irow+1);
+	     if(pixelValue<upLimit & pixelValue>lowLimit){
+		pixelMean = pixelMean+pixelValue/rowSum*icol*pitch;
+
+		}
+
+		}
+
+	    for(int icol = 0; icol<72; icol++){
+		pixelValue = hAdc2dMap->GetBinContent(icol+1, irow+1);
+	     if(pixelValue<upLimit & pixelValue>lowLimit){
+		pixelSigma2 = pixelSigma2 + (pixelValue/rowSum)*((icol+1)*pitch-pixelMean)*((icol+1)*pitch-pixelMean);
+
+		}
+
+		}
+		
+		ge.SetPoint(iPoint, (irow+1)*pitch, pixelMean );
+		ge.SetPointError(iPoint, 0, sqrt(pixelSigma2));
+//		ge.SetPointError(iPoint, 0, 0);
+		geRota.SetPoint(iPoint, pixelMean, (irow+1)*pitch );
+		geRota.SetPointError(iPoint, sqrt(pixelSigma2), 0);
+//		geRota.SetPointError(iPoint, 0, 0);
+		iPoint++;
+
+	}
+
+
+
+
+
+	TF1 *fit1 = new TF1("fit1", "pol1", 2*pitch, 71*pitch);
+
+        ge.Fit("fit1", "QR");
+	
+
+// 
+
+	b = fit1->GetParameter(0);
+	k = fit1->GetParameter(1);
+
+	diMean = 0;
+	diRMS = 0;
+	iPoint = 0;
+	
+        for(int irow = 1; irow < 71; irow++){
+      
+	ge.GetPoint(iPoint,pointX,pointY);
+
+	di = (pointY-(k*(irow+1)*pitch+b))*cos(atan(k));
+	
+	diMean = diMean + di;
+	diRMS = diRMS + di*di;
+	iPoint++;
+ 
+        }
+
+
+	//diRMS = sqrt(abs(diRMS-diMean*diMean/70)/(70-1));
+    diMean = diMean/70;
+	diRMS = sqrt(abs(diRMS/70-diMean*diMean)/(70-1));
+	//diMean = diMean/70;
+	resol = diRMS/sqrt(70);
+
+
+	cout<<"resol: "<<resol<<endl;
+
+	TString hist2dNameRotat;
+        hist2dNameRotat = "hAdc2dMap_iframe"; hist2dNameRotat += iframe;
+
+        TH2D *hAdc2dMapRotat= new TH2D(hist2dNameRotat, "", 72, 0*pitch, 72*pitch, 72, 0*pitch, 72*pitch);
+///////////////////////////////////////////////////////////////////////////// 
+/*      
+        for(int ipixel=0;ipixel<pd1.nPix();ipixel++){        
+            binX = ipixel/72;
+            binY = ipixel%72;
+            adc_value=pd1.chaDat[ipixel*pd1.nFrame()+iframe];            
+            hAdc2dMapRotat->SetBinContent(binY+1,binX+1,adc_value);            
+        }
+*/
+/////////////////////////////////////////////////////////////////////////////
+        
+/////////////////////////////////////////////////////////////////////////////
+        for(int ipixel=0;ipixel<pd1.nPix();ipixel++){        
+            binX = ipixel/72;
+            binY = ipixel%72;
+           adc_value = 0;
+            for(int isample=0;isample<pd1.samPerPix();isample++){
+                adc_value+=pd1.chaDat[iframe*pd1.samPerPix()*pd1.nPix()+ipixel*pd1.samPerPix()+isample];
+            }
+            adc_value/=(double)pd1.samPerPix();
+            adc_value-=pede.meanPed[ich*pd1.nPix()+ipixel];
+            //cout<<adc_value<<endl;  
+            // if(adc_value<0){
+            // 	adc_value=0;
+            // }       
+            hAdc2dMapRotat->SetBinContent(binX+1,binY+1,adc_value);            
+        }
+////////////////////////////////////////////////////////////////////////////
+
+	TString hist2dNameRotat90;
+        hist2dNameRotat90 = "hAdc2dMaRotat90";
+        TH2D *hAdc2dMapRotat90= new TH2D(hist2dNameRotat90, "", 72, 0*pitch, 72*pitch, 72, 0*pitch, 72*pitch);
+
+
+        for(int irow = 0; irow < 72; irow++){
+            for(int icol = 0; icol < 72; icol++){
+		hAdc2dMapRotat90->SetBinContent(irow+1, icol+1, hAdc2dMapRotat->GetBinContent(icol+1, irow+1));
+	    	
+		}
+
+
+	}
+    /*
+	hAdc2dMapRotat90->GetXaxis()->SetTitle("#mum");
+	hAdc2dMapRotat90->GetXaxis()->CenterTitle();
+	hAdc2dMapRotat90->GetYaxis()->SetTitleOffset(1.6);
+	hAdc2dMapRotat90->GetYaxis()->SetTitle("#mum");	
+	hAdc2dMapRotat90->GetYaxis()->CenterTitle();	
+	hAdc2dMapRotat90->SetMaximum(upLimit);
+	//hAdc2dMapRotat90->SetMinimum(-20);	
+	hAdc2dMapRotat90->SetMinimum(lowLimit);
+	*/	
+	hAdc2dMapRotat->GetXaxis()->SetTitle("#mum");
+	hAdc2dMapRotat->GetXaxis()->CenterTitle();
+	hAdc2dMapRotat->GetYaxis()->SetTitleOffset(1.6);
+	hAdc2dMapRotat->GetYaxis()->SetTitle("#mum");	
+	hAdc2dMapRotat->GetYaxis()->CenterTitle();	
+	hAdc2dMapRotat->SetMaximum(upLimit);
+	//hAdc2dMapRotat90->SetMinimum(-20);	
+	hAdc2dMapRotat->SetMinimum(lowLimit);	
+
+        TCanvas *cBeamPosFit = new TCanvas("cBeamPosFit", "Beam Position Fit", 800 ,800);
+
+	
+	cBeamPosFit->cd();
+        cBeamPosFit->SetCanvasSize(750, 750);
+	//hAdc2dMapRotat90->Draw("COLZ");
+        hAdc2dMapRotat->Draw("COLZ");
+
+	geRota.Draw("same p*");
+	//ge.Draw("same p*");
+
+     /*   TF1 *fit1Rota = new TF1("fit1Rota", "1/[0]*x-[1]/[0]", pitch, 73*pitch);
+	fit1Rota->SetParameter(0,k);
+	fit1Rota->SetParameter(1,b);
+	fit1Rota->Draw("same");*/
+
+	TGraph gPoint;
+	iPoint = 0;
+       for(int irow = 1; irow < 71; irow++){
+
+        gPoint.SetPoint(iPoint, (irow+1)*pitch*k+b, (irow+1)*pitch);
+	iPoint++;
+
+	}
+	gPoint.Draw("same c");
+	gPoint.SetLineColor(2);
+	gPoint.SetLineWidth(4);
+
+	char *beamPosFitNamePng =Form("pd1png/beamPositionFitChip%dFrame%d.png",ich, iframe);
+        cBeamPosFit->SaveAs(beamPosFitNamePng);
+
+	char *beamPosFitNamePdf =Form("pd1png/beamPositionFitChip%dFrame%d.pdf",ich, iframe);
+        cBeamPosFit->SaveAs(beamPosFitNamePdf);
+	delete cBeamPosFit;
+
+} 
+
+///////////////////for pd1 test, end of function:beamPosFit_pd1/////////////////////////////////
+//////////////////////////////////////////////lizili test  20190103/////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////new for pd1 test, begin of function:beamPosFit_pd1/////////////////////////
+// void beamPosFit_pd1(char *pedeFile, int ich, int iframe, double upLimit, double lowLimit)
+//    {
+
+//          pd1Pede pede;
+//         pede.setup(pedeFile); 
+
+// 	gStyle->SetOptStat(0);
+// 	gStyle->SetOptFit(1);
+
+// 	int nTopMetalChips=pd1.adcCha();
+// 	int nPixelsOnChip=pd1.nPix();        
+//         int nFrames=pd1.nFrame();
+        
+
+// 	double rowSum;
+// 	double pixelValue;
+// 	double pixelMean;
+// 	double pixelSigma2;
+
+// 	double pitch = 83;
+// 	double b;
+// 	double k;
+
+// 	double di;
+// 	double pointX, pointY; 
+// 	double diMean=0;
+// 	double diRMS=0;
+// 	double resol=0;
+// 	double resolMean=0;
+// 	double resolRMS=0;
+
+
+//         pd1.getChaDat(ich);
+//         double adc_value;
+//         int binX;
+//         int binY;
+
+// 	double th2DupLimit = 25;
+// 	double th2DlowLimit = 0;
+
+
+
+
+
+// 	TString hist2dName;
+//         hist2dName = "hAdc2dMap_iframe"; hist2dName += iframe;
+//         TH2D *hAdc2dMap= new TH2D(hist2dName, "pd1 ADC 2d Map;pixel row index;pixel column index", 72, 0, 72, 72, 0, 72);
+
+
+// /////////////////////////////////////////////////////////////////////////////
+//         // for(int ipixel=0;ipixel<pd1.nPix();ipixel++){        
+//         //     binX = ipixel/72;
+//         //     binY = ipixel%72;
+//         //     adc_value=pd1.chaDat[ipixel*pd1.nFrame()+iframe];         
+//         //     hAdc2dMap->SetBinContent(binX+1,binY+1,adc_value);            
+//         // }
+// /////////////////////////////////////////////////////////////////////////////       
+
+// /////////////////////////////////////////////////////////////////////////////
+//         for(int ipixel=0;ipixel<pd1.nPix();ipixel++){        
+//             binX = ipixel/72;
+//             binY = ipixel%72;
+//            adc_value = 0;
+//             for(int isample=0;isample<pd1.samPerPix();isample++){
+//                 adc_value+=pd1.chaDat[iframe*pd1.samPerPix()*pd1.nPix()+ipixel*pd1.samPerPix()+isample];
+//             }
+//             adc_value/=(double)pd1.samPerPix();
+//             adc_value-=pede.meanPed[ich*pd1.nPix()+ipixel];  
+//             // if(adc_value<0){
+//             // 	adc_value=0;
+//             // }     
+//             //cout<<adc_value<<endl;   
+//             hAdc2dMap->SetBinContent(binX+1,binY+1,adc_value);            
+//         }
+// ////////////////////////////////////////////////////////////////////////////
+
+
+// 	TGraphErrors ge;
+// 	TGraphErrors geRota;	
+// 	int iPoint=0;
+//         for(int irow = 1; irow < 71; irow++){
+//         	rowSum = 0;
+// 		pixelMean = 0;
+// 		pixelSigma2 =0;
+//          for(int icol = 0; icol < 72; icol++){
+// 		pixelValue = hAdc2dMap->GetBinContent(icol+1, irow+1);
+// 	      if(pixelValue<upLimit & pixelValue>lowLimit){
+// 		rowSum = rowSum + pixelValue;		
+// 		}			
+// 		}
+// 	    for(int icol = 0; icol<72; icol++){
+// 		pixelValue = hAdc2dMap->GetBinContent(icol+1, irow+1);
+// 	     if(pixelValue<upLimit & pixelValue>lowLimit){
+// 		pixelMean = pixelMean+pixelValue/rowSum*icol*pitch;
+
+// 		}
+
+// 		}
+
+// 	    for(int icol = 0; icol<72; icol++){
+// 		pixelValue = hAdc2dMap->GetBinContent(icol+1, irow+1);
+// 	     if(pixelValue<upLimit & pixelValue>lowLimit){
+// 		pixelSigma2 = pixelSigma2 + (pixelValue/rowSum)*((icol+1)*pitch-pixelMean)*((icol+1)*pitch-pixelMean);
+
+// 		}
+
+// 		}
+		
+// 		ge.SetPoint(iPoint, (irow+1)*pitch, pixelMean );
+// //		ge.SetPointError(iPoint, 0, sqrt(pixelSigma2));
+// 		ge.SetPointError(iPoint, 0, 0);
+// 		geRota.SetPoint(iPoint, pixelMean, (irow+1)*pitch );
+// //		geRota.SetPointError(iPoint, sqrt(pixelSigma2), 0);
+// 		geRota.SetPointError(iPoint, 0, 0);
+// 		iPoint++;
+
+// 	}
+
+
+
+
+
+// 	TF1 *fit1 = new TF1("fit1", "pol1", 2*pitch, 71*pitch);
+
+//         ge.Fit("fit1", "QR");
+	
+
+// // 
+
+// 	b = fit1->GetParameter(0);
+// 	k = fit1->GetParameter(1);
+
+// 	diMean = 0;
+// 	diRMS = 0;
+// 	iPoint = 0;
+	
+//         for(int irow = 1; irow < 71; irow++){
+      
+// 	ge.GetPoint(iPoint,pointX,pointY);
+
+// 	di = (pointY-(k*(irow+1)*pitch+b))*cos(atan(k));
+	
+// 	diMean = diMean + di;
+// 	diRMS = diRMS + di*di;
+// 	iPoint++;
+ 
+//         }
+
+
+// 	diRMS = sqrt(abs(diRMS-diMean*diMean/70)/(70-1));
+// 	diMean = diMean/70;
+// 	resol = diRMS/sqrt(70);
+
+
+// 	cout<<"resol: "<<resol<<endl;
+
+// 	TString hist2dNameRotat;
+//         hist2dNameRotat = "hAdc2dMap_iframe"; hist2dNameRotat += iframe;
+
+//         TH2D *hAdc2dMapRotat= new TH2D(hist2dNameRotat, "", 72, 0*pitch, 72*pitch, 72, 0*pitch, 72*pitch);
+// /////////////////////////////////////////////////////////////////////////////
+//   //       for(int ipixel=0;ipixel<pd1.nPix();ipixel++){        
+//   //           binX = ipixel/72;
+//   //           binY = ipixel%72;
+//   //           adc_value=pd1.chaDat[ipixel*pd1.nFrame()+iframe];   
+// 		// if(adc_value>upLimit){
+// 		// 	adc_value = th2DlowLimit-1;		
+// 		// }         
+//   //           hAdc2dMapRotat->SetBinContent(binY+1,binX+1,adc_value);            
+//   //       }
+// /////////////////////////////////////////////////////////////////////////////
+
+// /////////////////////////////////////////////////////////////////////////////
+//         for(int ipixel=0;ipixel<pd1.nPix();ipixel++){        
+//             binX = ipixel/72;
+//             binY = ipixel%72;
+//            adc_value = 0;
+//             for(int isample=0;isample<pd1.samPerPix();isample++){
+//                 adc_value+=pd1.chaDat[iframe*pd1.samPerPix()*pd1.nPix()+ipixel*pd1.samPerPix()+isample];
+//             }
+//             adc_value/=(double)pd1.samPerPix();
+//             adc_value-=pede.meanPed[ich*pd1.nPix()+ipixel];
+//             //cout<<adc_value<<endl;  
+//             // if(adc_value<0){
+//             // 	adc_value=0;
+//             // }       
+//             hAdc2dMapRotat->SetBinContent(binX+1,binY+1,adc_value);            
+//         }
+// ////////////////////////////////////////////////////////////////////////////
+
+
+// 	TString hist2dNameRotat90;
+//         hist2dNameRotat90 = "hAdc2dMaRotat90";
+//         TH2D *hAdc2dMapRotat90= new TH2D(hist2dNameRotat90, "", 72, 0*pitch, 72*pitch, 72, 0*pitch, 72*pitch);
+
+
+//         for(int irow = 0; irow < 72; irow++){
+//             for(int icol = 0; icol < 72; icol++){
+// 		hAdc2dMapRotat90->SetBinContent(irow+1, icol+1, hAdc2dMapRotat->GetBinContent(icol+1, irow+1));
+	    	
+// 		}
+
+
+// 	}
+
+	
+
+// 	// hAdc2dMapRotat90->GetXaxis()->SetTitle("x [#mum]");
+// 	// hAdc2dMapRotat90->GetXaxis()->CenterTitle();
+// 	// //hAdc2dMapRotat90->GetXaxis()->SetRangeUser(-20, 6000);
+// 	// hAdc2dMapRotat90->GetYaxis()->SetTitleOffset(1.8);
+// 	// hAdc2dMapRotat90->GetYaxis()->SetTitle("z [#mum]");	
+// 	// hAdc2dMapRotat90->GetYaxis()->CenterTitle();	
+// 	// //hAdc2dMapRotat90->GetYaxis()->SetRangeUser(-20, 6000);
+// 	// hAdc2dMapRotat90->SetMaximum(th2DupLimit);
+// 	// hAdc2dMapRotat90->SetMinimum(th2DlowLimit);	
+
+// 	hAdc2dMapRotat->GetXaxis()->SetTitle("x [#mum]");
+// 	hAdc2dMapRotat->GetXaxis()->CenterTitle();
+// 	//hAdc2dMapRotat90->GetXaxis()->SetRangeUser(-20, 6000);
+// 	hAdc2dMapRotat->GetYaxis()->SetTitleOffset(1.8);
+// 	hAdc2dMapRotat->GetYaxis()->SetTitle("z [#mum]");	
+// 	hAdc2dMapRotat->GetYaxis()->CenterTitle();	
+// 	//hAdc2dMapRotat90->GetYaxis()->SetRangeUser(-20, 6000);
+// 	hAdc2dMapRotat->SetMaximum(th2DupLimit);
+// 	hAdc2dMapRotat->SetMinimum(th2DlowLimit);		
+
+//         TCanvas *cBeamPosFit = new TCanvas("cBeamPosFit", "Beam Position Fit", 800 ,800);
+
+	
+// 	cBeamPosFit->cd();
+//         cBeamPosFit->SetCanvasSize(750, 750);
+//     cBeamPosFit->SetLeftMargin(0.12);
+//  cBeamPosFit->SetRightMargin(0.12);
+//   cBeamPosFit->SetTopMargin(0.1);
+//   cBeamPosFit->SetBottomMargin(0.1);
+// 	cBeamPosFit->SetTickx();
+// 	cBeamPosFit->SetTicky();
+
+// 	//hAdc2dMapRotat90->Draw("COLZ");
+// 	hAdc2dMapRotat->Draw("COLZ");
+	
+
+// 	geRota.Draw("same p*");
+
+
+//      /*   TF1 *fit1Rota = new TF1("fit1Rota", "1/[0]*x-[1]/[0]", pitch, 73*pitch);
+// 	fit1Rota->SetParameter(0,k);
+// 	fit1Rota->SetParameter(1,b);
+// 	fit1Rota->Draw("same");*/
+
+// 	TGraph gPoint;
+// 	iPoint = 0;
+//        for(int irow = 1; irow < 71; irow++){
+
+//         gPoint.SetPoint(iPoint, (irow+1)*pitch*k+b, (irow+1)*pitch);
+// 	iPoint++;
+
+// 	}
+// 	gPoint.Draw("same c");
+// 	gPoint.SetLineColor(2);
+// 	gPoint.SetLineWidth(4);
+
+// 	char *beamPosFitNamePng =Form("pd1png/beamPositionFitChip%dFrame%d.png",ich, iframe);
+//         cBeamPosFit->SaveAs(beamPosFitNamePng);
+
+// 	char *beamPosFitNamePdf =Form("pd1png/beamPositionFitChip%dFrame%d.pdf",ich, iframe);
+//         cBeamPosFit->SaveAs(beamPosFitNamePdf);
+// 	delete cBeamPosFit;
+
+// } 
+
+//////////////////for pd1 test, end of function:beamPosFit_pd1/////////////////////////////////
+//////////////////////////////////////////////lizili test  20190103/////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   void beamPara_old(char *pedeFile, int ich)
    {
 

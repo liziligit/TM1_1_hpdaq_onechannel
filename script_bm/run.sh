@@ -27,7 +27,7 @@ sleep 1
 sleep 1
 ./pede.sh 7
 sleep 1
-./runData.sh 1 3 s sigdisturb
+./runData.sh 1 3 s sigdisturb2
 sleep 1 
-./pd1SyncDraw2D.sh 1 7 -10 10 1 sigdisturb
+./pd1SyncDraw2D.sh 1 7 -10 10 2 sigdisturb2
 

@@ -70,6 +70,7 @@ placData_1 pd1;
 char infn[100];
 char pedefn[100];
 char beamfn[100];
+char txtfn[100];
 
 //sprintf(infn,"%s_%d.pd1",infile, fileId);
 sprintf(pedefn,"%s_%d.txt", pedefile, pedeId);
@@ -120,7 +121,7 @@ vector<int> idList;
     //int nCh=pd1.adcCha();
     int nCh=1;
     plot pt;
-    pt.setupCanvas(nCh,1, ip, 360, 360);//设置canvas上图片的行数，列数, 及 canvas的位置
+    pt.setupCanvas(nCh,1, ip, 720, 720);//设置canvas上图片的行数，列数, 及 canvas的位置
     pt.setup2D(nCh,1,72,72,"hist2d"); 
     pt.setup2DMinMax(minPixelSignal,maxPixelSignal);
     int ch;
@@ -147,7 +148,7 @@ vector<int> idList;
 
 			for(int k=0;k<nCh;k++){
 			if(k<nCh/2){
-				pt.loadData2Hist2D(pd1.frameDat+k*72*72,k+nCh/2);
+				pt.loadData2Hist2D(pd1.frameDat+k*72*72,k+nCh/2);				
 			}else{
 				pt.loadData2Hist2D(pd1.frameDat+k*72*72,nCh-k-1);	
 				}
@@ -207,6 +208,20 @@ vector<int> idList;
 					else if(Key_input == 50000)
 					{
 						pt.c->SaveAs(TString::Format("../data/runData/%s/cut_%s_%d_%d.png", store_file_name,store_file_name,fileId,i));
+
+						sprintf(txtfn,"../data/runData/%s/cut_%s_%d_%d.txt", store_file_name,store_file_name,fileId,i);
+						ofstream n2(txtfn,ios::trunc);
+						assert(n2); 
+
+						//n2 << "frame:" << i <<"\n";
+						for(int j=0;j<5184;j++)
+						{
+						n2 << fixed << setprecision(0) <<setiosflags(ios::left)<< setw(4) << pd1.frameDat[j];
+						if ( (j+1) % 72 == 0)
+						n2 << endl;
+						}
+						n2.close();
+						
 						goto wait_opera;
 					}
 					//end for saving frame png	
@@ -269,6 +284,21 @@ vector<int> idList;
 						else if(Key_input == 50000)
 						{
 						pt.c->SaveAs(TString::Format("../data/runData/%s/cut_%s_%d_%d.png", store_file_name,store_file_name,fileId,i));
+
+						sprintf(txtfn,"../data/runData/%s/cut_%s_%d_%d.txt", store_file_name,store_file_name,fileId,i);
+						ofstream n2(txtfn,ios::trunc);
+						assert(n2); 
+
+						//n2 << "frame:" << i <<"\n";
+						for(int j=0;j<5184;j++)
+						{
+						n2 << fixed << setprecision(0) <<setiosflags(ios::left)<< setw(4) << pd1.frameDat[j];
+						//n2 << setiosflags(ios::fixed) << setprecision(4) << " " << pd1.frameDat[j];
+						if ( (j+1) % 72 == 0)
+						n2 << endl;
+						}
+						n2.close();
+						
 						goto wait_opera;
 						}
 						//end for saving frame png		
