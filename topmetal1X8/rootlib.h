@@ -37,7 +37,8 @@
 #include <TSystem.h>
 #include <TF1.h>
 #include <TApplication.h>
-
+#include <iterator>
+#include <valarray>
 
 
 using namespace std;
@@ -9539,27 +9540,28 @@ void displayInterfaceUpdate(char *pedeFile, char *fn, double maxPixelSignal, dou
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////new for pd1 test, begin of function:beamPosFit_pd1/////////////////////////
-
+/////////////////////////new for pd1 test, begin of function:beamPosFit_pd1///////////////////////////////////////////
 void beamPosFit_pd1(char *pedeFile, int ich, int iframe, double upLimit, double lowLimit)
    {
-        pd1Pede pede;
-        pede.setup(pedeFile); 
+    pd1Pede pede;
+    pede.setup(pedeFile); 
  
 	gStyle->SetOptStat(0);
 	gStyle->SetOptFit(1);
 
 	int nTopMetalChips=pd1.adcCha();
 	int nPixelsOnChip=pd1.nPix();        
-        int nFrames=pd1.nFrame();
-        
+    int nFrames=pd1.nFrame();
+    double arry2dmap[72][72]; 
+    int location_Num[72];  
+    int Del_width =5;  
 
 	double rowSum;
 	double pixelValue;
 	double pixelMean;
 	double pixelSigma2;
-    //double upLimit = 100;
-	//double lowLimit = 0;
+	double th2DupLimit = 10;
+	double th2DlowLimit = -10;
 	double pitch = 83;
 	double b;
 	double k;
@@ -9578,29 +9580,11 @@ void beamPosFit_pd1(char *pedeFile, int ich, int iframe, double upLimit, double 
         int binX;
         int binY;
 
-
-
-
-
-
-
 	TString hist2dName;
-        hist2dName = "hAdc2dMap_iframe"; hist2dName += iframe;
+        hist2dName = "hAdc2dMap_iframe"; //hist2dName += iframe;
         TH2D *hAdc2dMap= new TH2D(hist2dName, "pd1 ADC 2d Map;pixel row index;pixel column index", 72, 0, 72, 72, 0, 72);
 
 
-/////////////////////////////////////////////////////////////////////////////
-/*
-        for(int ipixel=0;ipixel<pd1.nPix();ipixel++){        
-            binX = ipixel/72;
-            binY = ipixel%72;
-            adc_value=pd1.chaDat[ipixel*pd1.nFrame()+iframe];            
-            hAdc2dMap->SetBinContent(binX+1,binY+1,adc_value);            
-        }
-*/
- /////////////////////////////////////////////////////////////////////////////
-        
-/////////////////////////////////////////////////////////////////////////////
         for(int ipixel=0;ipixel<pd1.nPix();ipixel++){        
             binX = ipixel/72;
             binY = ipixel%72;
@@ -9609,15 +9593,40 @@ void beamPosFit_pd1(char *pedeFile, int ich, int iframe, double upLimit, double 
                 adc_value+=pd1.chaDat[iframe*pd1.samPerPix()*pd1.nPix()+ipixel*pd1.samPerPix()+isample];
             }
             adc_value/=(double)pd1.samPerPix();
-            adc_value-=pede.meanPed[ich*pd1.nPix()+ipixel];  
-            // if(adc_value<0){
-            // 	adc_value=0;
-            // }     
-            //cout<<adc_value<<endl;   
-            hAdc2dMap->SetBinContent(binX+1,binY+1,adc_value);            
+            adc_value-=pede.meanPed[ich*pd1.nPix()+ipixel];   
+            //hAdc2dMap->SetBinContent(binX+1,binY+1,adc_value); 
+            arry2dmap[binY][binX] = adc_value;
         }
-////////////////////////////////////////////////////////////////////////////
 
+        //resort the hAdc2dMap
+        //get the largest adc_value of every row
+          for(int i=0;i<72;i++){
+          // cout << "Max element: " << *max_element(arry2dmap[i], arry2dmap[i]+ sizeof(arry2dmap[i])/sizeof(arry2dmap[i][0])) << "\n";
+          // cout << "Max element location: " << distance(arry2dmap[i], max_element(arry2dmap[i], arry2dmap[i] + sizeof(arry2dmap[i])/sizeof(arry2dmap[i][0]))) << "\n";
+          location_Num[i] = distance(arry2dmap[i], max_element(arry2dmap[i], arry2dmap[i] + sizeof(arry2dmap[i])/sizeof(arry2dmap[i][0]))) ;
+
+         //keep the largest Num +- width
+
+        for(int m = 0; m < location_Num[i] - Del_width; m++)
+        {
+         arry2dmap[i][m]=0;
+        }
+
+        for(int n = location_Num[i] + Del_width + 1; n < 72; n++)
+        {
+         arry2dmap[i][n]=0;
+        }
+
+      	}
+
+      	//give to the hAdc2dMap
+      	for (int k = 0; k < 72; k++)
+    {
+      for (int l = 0; l < 72; l++)
+      {
+		hAdc2dMap->SetBinContent(l+1,k+1,arry2dmap[k][l]); 
+      }
+   }
 
 
 	TGraphErrors ge;
@@ -9633,11 +9642,11 @@ void beamPosFit_pd1(char *pedeFile, int ich, int iframe, double upLimit, double 
 		rowSum = rowSum + pixelValue;		
 		}			
 		}
+
 	    for(int icol = 0; icol<72; icol++){
 		pixelValue = hAdc2dMap->GetBinContent(icol+1, irow+1);
 	     if(pixelValue<upLimit & pixelValue>lowLimit){
 		pixelMean = pixelMean+pixelValue/rowSum*icol*pitch;
-
 		}
 
 		}
@@ -9650,8 +9659,9 @@ void beamPosFit_pd1(char *pedeFile, int ich, int iframe, double upLimit, double 
 		}
 
 		}
-		
+		//Set x, y and z values for point number i. 
 		ge.SetPoint(iPoint, (irow+1)*pitch, pixelMean );
+		//Set ex, ey values for point number i. 
 		ge.SetPointError(iPoint, 0, sqrt(pixelSigma2));
 //		ge.SetPointError(iPoint, 0, 0);
 		geRota.SetPoint(iPoint, pixelMean, (irow+1)*pitch );
@@ -9661,16 +9671,15 @@ void beamPosFit_pd1(char *pedeFile, int ich, int iframe, double upLimit, double 
 
 	}
 
-
-
-
-
 	TF1 *fit1 = new TF1("fit1", "pol1", 2*pitch, 71*pitch);
 
-        ge.Fit("fit1", "QR");
-	
+    ge.Fit("fit1", "QR");//fit ge and geRota
 
-// 
+  // getter methods
+  //   Double_t GetParameter(Int_t iparam) const
+  //   {
+  //      return (CheckIndex(iparam)) ? fParameters[iparam] : 0;
+  // }
 
 	b = fit1->GetParameter(0);
 	k = fit1->GetParameter(1);
@@ -9679,7 +9688,7 @@ void beamPosFit_pd1(char *pedeFile, int ich, int iframe, double upLimit, double 
 	diRMS = 0;
 	iPoint = 0;
 	
-        for(int irow = 1; irow < 71; irow++){
+    for(int irow = 1; irow < 71; irow++){
       
 	ge.GetPoint(iPoint,pointX,pointY);
 
@@ -9687,95 +9696,102 @@ void beamPosFit_pd1(char *pedeFile, int ich, int iframe, double upLimit, double 
 	
 	diMean = diMean + di;
 	diRMS = diRMS + di*di;
-	iPoint++;
- 
-        }
+	iPoint++; 
+    }
 
 
-	//diRMS = sqrt(abs(diRMS-diMean*diMean/70)/(70-1));
-    diMean = diMean/70;
-	diRMS = sqrt(abs(diRMS/70-diMean*diMean)/(70-1));
-	//diMean = diMean/70;
+	diRMS = sqrt(abs(diRMS-diMean*diMean/70)/(70-1));
+    // diMean = diMean/70;
+	// diRMS = sqrt(abs(diRMS/70-diMean*diMean)/(70-1));
+	diMean = diMean/70;
 	resol = diRMS/sqrt(70);
 
 
 	cout<<"resol: "<<resol<<endl;
 
 	TString hist2dNameRotat;
-        hist2dNameRotat = "hAdc2dMap_iframe"; hist2dNameRotat += iframe;
+        hist2dNameRotat = "hAdc2dMap_iframe"; //hist2dNameRotat += iframe;
 
         TH2D *hAdc2dMapRotat= new TH2D(hist2dNameRotat, "", 72, 0*pitch, 72*pitch, 72, 0*pitch, 72*pitch);
-///////////////////////////////////////////////////////////////////////////// 
-/*      
-        for(int ipixel=0;ipixel<pd1.nPix();ipixel++){        
+
+            for(int ipixel=0;ipixel<pd1.nPix();ipixel++){        
             binX = ipixel/72;
             binY = ipixel%72;
-            adc_value=pd1.chaDat[ipixel*pd1.nFrame()+iframe];            
-            hAdc2dMapRotat->SetBinContent(binY+1,binX+1,adc_value);            
-        }
-*/
-/////////////////////////////////////////////////////////////////////////////
-        
-/////////////////////////////////////////////////////////////////////////////
-        for(int ipixel=0;ipixel<pd1.nPix();ipixel++){        
-            binX = ipixel/72;
-            binY = ipixel%72;
-           adc_value = 0;
+            adc_value = 0;
             for(int isample=0;isample<pd1.samPerPix();isample++){
                 adc_value+=pd1.chaDat[iframe*pd1.samPerPix()*pd1.nPix()+ipixel*pd1.samPerPix()+isample];
             }
+
             adc_value/=(double)pd1.samPerPix();
-            adc_value-=pede.meanPed[ich*pd1.nPix()+ipixel];
-            //cout<<adc_value<<endl;  
-            // if(adc_value<0){
-            // 	adc_value=0;
-            // }       
-            hAdc2dMapRotat->SetBinContent(binX+1,binY+1,adc_value);            
+            adc_value-=pede.meanPed[ich*pd1.nPix()+ipixel];   
+            //hAdc2dMap->SetBinContent(binX+1,binY+1,adc_value); 
+            arry2dmap[binY][binX] = adc_value;
         }
-////////////////////////////////////////////////////////////////////////////
 
-	TString hist2dNameRotat90;
-        hist2dNameRotat90 = "hAdc2dMaRotat90";
-        TH2D *hAdc2dMapRotat90= new TH2D(hist2dNameRotat90, "", 72, 0*pitch, 72*pitch, 72, 0*pitch, 72*pitch);
+        //resort the hAdc2dMap
+        //get the largest adc_value of every row
+          for(int i=0;i<72;i++){
+          //cout << "Max element: " << *max_element(arry2dmap[i], arry2dmap[i]+ sizeof(arry2dmap[i])/sizeof(arry2dmap[i][0])) << "\n";
+          //cout << "Max element location: " << distance(arry2dmap[i], max_element(arry2dmap[i], arry2dmap[i] + sizeof(arry2dmap[i])/sizeof(arry2dmap[i][0]))) << "\n";
+          location_Num[i] = distance(arry2dmap[i], max_element(arry2dmap[i], arry2dmap[i] + sizeof(arry2dmap[i])/sizeof(arry2dmap[i][0]))) ;
 
+         //keep the largest Num +- width
+        for(int m = 0; m < location_Num[i] - Del_width; m++)
+        {
+         arry2dmap[i][m]=0;
+        }
 
-        for(int irow = 0; irow < 72; irow++){
-            for(int icol = 0; icol < 72; icol++){
-		hAdc2dMapRotat90->SetBinContent(irow+1, icol+1, hAdc2dMapRotat->GetBinContent(icol+1, irow+1));
-	    	
-		}
+        for(int n = location_Num[i] + Del_width + 1; n < 72; n++)
+        {
+         arry2dmap[i][n]=0;
+        }
 
+      	}
 
-	}
-    /*
-	hAdc2dMapRotat90->GetXaxis()->SetTitle("#mum");
-	hAdc2dMapRotat90->GetXaxis()->CenterTitle();
-	hAdc2dMapRotat90->GetYaxis()->SetTitleOffset(1.6);
-	hAdc2dMapRotat90->GetYaxis()->SetTitle("#mum");	
-	hAdc2dMapRotat90->GetYaxis()->CenterTitle();	
-	hAdc2dMapRotat90->SetMaximum(upLimit);
-	//hAdc2dMapRotat90->SetMinimum(-20);	
-	hAdc2dMapRotat90->SetMinimum(lowLimit);
-	*/	
+      	//give to the hAdc2dMap
+      	for (int k = 0; k < 72; k++)
+    {
+      for (int l = 0; l < 72; l++)
+      {
+		hAdc2dMapRotat->SetBinContent(l+1,k+1,arry2dmap[k][l]); 
+      }
+   }
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+	// TString hist2dNameRotat90;
+ //        hist2dNameRotat90 = "hAdc2dMaRotat90";
+ //        TH2D *hAdc2dMapRotat90= new TH2D(hist2dNameRotat90, "", 72, 0*pitch, 72*pitch, 72, 0*pitch, 72*pitch);
+
+ //       for(int irow = 0; irow < 72; irow++){
+ //            for(int icol = 0; icol < 72; icol++){
+	// 	hAdc2dMapRotat90->SetBinContent(irow+1, icol+1, hAdc2dMapRotat->GetBinContent(icol+1, irow+1));    	
+	// 	}
+	// }
+ 
+	// hAdc2dMapRotat90->GetXaxis()->SetTitle("#mum");
+	// hAdc2dMapRotat90->GetXaxis()->CenterTitle();
+	// hAdc2dMapRotat90->GetYaxis()->SetTitleOffset(1.6);
+	// hAdc2dMapRotat90->GetYaxis()->SetTitle("#mum");	
+	// hAdc2dMapRotat90->GetYaxis()->CenterTitle();	
+	// hAdc2dMapRotat90->SetMaximum(th2DupLimit);	
+	// hAdc2dMapRotat90->SetMinimum(th2DlowLimit);
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	hAdc2dMapRotat->GetXaxis()->SetTitle("#mum");
 	hAdc2dMapRotat->GetXaxis()->CenterTitle();
 	hAdc2dMapRotat->GetYaxis()->SetTitleOffset(1.6);
 	hAdc2dMapRotat->GetYaxis()->SetTitle("#mum");	
 	hAdc2dMapRotat->GetYaxis()->CenterTitle();	
-	hAdc2dMapRotat->SetMaximum(upLimit);
-	//hAdc2dMapRotat90->SetMinimum(-20);	
-	hAdc2dMapRotat->SetMinimum(lowLimit);	
+	hAdc2dMapRotat->SetMaximum(th2DupLimit);
+	hAdc2dMapRotat->SetMinimum(th2DlowLimit);	
 
-        TCanvas *cBeamPosFit = new TCanvas("cBeamPosFit", "Beam Position Fit", 800 ,800);
-
-	
+    TCanvas *cBeamPosFit = new TCanvas("cBeamPosFit", "Beam Position Fit", 800 ,800);	
 	cBeamPosFit->cd();
-        cBeamPosFit->SetCanvasSize(750, 750);
+    cBeamPosFit->SetCanvasSize(750, 750);
 	//hAdc2dMapRotat90->Draw("COLZ");
-        hAdc2dMapRotat->Draw("COLZ");
+    hAdc2dMapRotat->Draw("COLZ");//draw 72*72 2d map
 
-	geRota.Draw("same p*");
-	//ge.Draw("same p*");
+	geRota.Draw("same p*");//draw center of gravity point
+	//ge.Draw("same p*");//draw center of gravity point that turn 90 degree
 
      /*   TF1 *fit1Rota = new TF1("fit1Rota", "1/[0]*x-[1]/[0]", pitch, 73*pitch);
 	fit1Rota->SetParameter(0,k);
@@ -9784,27 +9800,234 @@ void beamPosFit_pd1(char *pedeFile, int ich, int iframe, double upLimit, double 
 
 	TGraph gPoint;
 	iPoint = 0;
-       for(int irow = 1; irow < 71; irow++){
 
-        gPoint.SetPoint(iPoint, (irow+1)*pitch*k+b, (irow+1)*pitch);
+    for(int irow = 1; irow < 71; irow++){
+    gPoint.SetPoint(iPoint, (irow+1)*pitch*k+b, (irow+1)*pitch);
 	iPoint++;
-
 	}
-	gPoint.Draw("same c");
+
+	gPoint.Draw("same c");//draw fitting line
 	gPoint.SetLineColor(2);
 	gPoint.SetLineWidth(4);
 
 	char *beamPosFitNamePng =Form("pd1png/beamPositionFitChip%dFrame%d.png",ich, iframe);
         cBeamPosFit->SaveAs(beamPosFitNamePng);
 
-	char *beamPosFitNamePdf =Form("pd1png/beamPositionFitChip%dFrame%d.pdf",ich, iframe);
-        cBeamPosFit->SaveAs(beamPosFitNamePdf);
+	// char *beamPosFitNamePdf =Form("pd1png/beamPositionFitChip%dFrame%d.pdf",ich, iframe);
+ //        cBeamPosFit->SaveAs(beamPosFitNamePdf);
 	delete cBeamPosFit;
 
 } 
 
-///////////////////for pd1 test, end of function:beamPosFit_pd1/////////////////////////////////
-//////////////////////////////////////////////lizili test  20190103/////////////////////////////
+///////////////////for pd1 test, end of function:beamPosFit_pd1////////////////////////////////////////////////////////
+//////////////////////////////////////////////lizili test  20190103//////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////new for pd1 test, begin of function:beamProfile_pd1///////////////////////////////////////////
+void beamProfile_pd1(char *pedeFile, int ich, int iframe, double upLimit, double lowLimit)
+   {
+   	pd1Pede pede;
+    pede.setup(pedeFile);
+	gStyle->SetOptStat(1111111);
+	gStyle->SetOptFit(1111111);
+
+	int nTopMetalChips=pd1.adcCha();
+	int nPixelsOnChip=pd1.nPix();        
+    int nFrames=pd1.nFrame();
+    double arry2dmap[72][72]; 
+    int location_Num[72];  
+    int Del_width =5; 
+
+	double rowSum;
+	double pixelValue;
+	double pixelMean;
+	double pixelRef;
+	double pitch = 83;
+	int binMove=0;
+
+
+        pd1.getChaDat(ich);
+        double adc_value;
+        int binX;
+        int binY;
+
+        double th2DupLimit = 10;
+        double th2DlowLimit = -10;
+
+	  TString hist2dName;
+        hist2dName = "hAdc2dMap_iframe"; //hist2dName += iframe;
+        TH2D *hAdc2dMap= new TH2D(hist2dName, ";pixel row index;pixel column index", 72, 0*pitch, 72*pitch, 72, 0*pitch, 72*pitch);
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  //       for(int ipixel=0;ipixel<pd1.nPix();ipixel++){        
+  //           binX = ipixel/72;
+  //           binY = ipixel%72;
+  //           adc_value=pd1.chaDat[ipixel*pd1.nFrame()+iframe]; 
+		// if(adc_value>upLimit){
+		// 	adc_value = th2DlowLimit-1;		
+		// }           
+  //           hAdc2dMap->SetBinContent(binX+1,binY+1,adc_value);            
+  //         }
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+          for(int ipixel=0;ipixel<pd1.nPix();ipixel++){        
+            binX = ipixel/72;
+            binY = ipixel%72;
+           adc_value = 0;
+            for(int isample=0;isample<pd1.samPerPix();isample++){
+                adc_value+=pd1.chaDat[iframe*pd1.samPerPix()*pd1.nPix()+ipixel*pd1.samPerPix()+isample];
+            }
+            adc_value/=(double)pd1.samPerPix();
+            adc_value-=pede.meanPed[ich*pd1.nPix()+ipixel];   
+            // hAdc2dMap->SetBinContent(binX+1,binY+1,adc_value); 
+            arry2dmap[binY][binX] = adc_value;
+        }
+
+        //resort the hAdc2dMap
+        //get the largest adc_value of every row
+          for(int i=0;i<72;i++){
+          // cout << "Max element: " << *max_element(arry2dmap[i], arry2dmap[i]+ sizeof(arry2dmap[i])/sizeof(arry2dmap[i][0])) << "\n";
+          // cout << "Max element location: " << distance(arry2dmap[i], max_element(arry2dmap[i], arry2dmap[i] + sizeof(arry2dmap[i])/sizeof(arry2dmap[i][0]))) << "\n";
+          location_Num[i] = distance(arry2dmap[i], max_element(arry2dmap[i], arry2dmap[i] + sizeof(arry2dmap[i])/sizeof(arry2dmap[i][0]))) ;
+
+         //keep the largest Num +- width
+
+        for(int m = 0; m < location_Num[i] - Del_width; m++)
+        {
+         arry2dmap[i][m]=0;
+        }
+
+        for(int n = location_Num[i] + Del_width + 1; n < 72; n++)
+        {
+         arry2dmap[i][n]=0;
+        }
+
+      	}
+
+      	//give to the hAdc2dMap
+      	for (int k = 0; k < 72; k++)
+    {
+      for (int l = 0; l < 72; l++)
+      {
+		hAdc2dMap->SetBinContent(l+1,k+1,arry2dmap[k][l]); 
+      }
+   }
+
+
+
+	for(int irow = 1; irow < 71; irow++){
+        	rowSum = 0;
+		pixelMean = 0;
+      	for(int icol = 0; icol < 72; icol++){
+			pixelValue = hAdc2dMap->GetBinContent(icol+1, irow+1);
+	      	if(pixelValue<upLimit & pixelValue>lowLimit){
+				rowSum = rowSum + pixelValue;		
+			}			
+		}
+	      for(int icol = 0; icol<72; icol++){
+			pixelValue = hAdc2dMap->GetBinContent(icol+1, irow+1);
+	     		if(pixelValue<upLimit & pixelValue>lowLimit){
+				pixelMean = pixelMean+pixelValue/rowSum*icol*pitch;
+			}
+		}
+		if(irow == 1){
+			pixelRef = pixelMean;
+		}else{
+			binMove = int((pixelMean - pixelRef)/pitch);
+			for(int icol = 0; icol<72; icol++){
+				if(binMove>=0){
+					if((icol+1+binMove)<73){
+					hAdc2dMap->SetBinContent(icol+1, irow+1, hAdc2dMap->GetBinContent(icol+1+binMove, irow+1));
+					}
+					else{
+					hAdc2dMap->SetBinContent(icol+1, irow+1, lowLimit);
+					}	
+			      }else{
+					if((icol+1+binMove)>=1){
+					hAdc2dMap->SetBinContent(icol+1+binMove, irow+1, hAdc2dMap->GetBinContent(icol+1, irow+1));
+					}					
+				}					
+			}			
+		}
+	}
+
+
+	hAdc2dMap->GetXaxis()->SetTitle("#mum");  //x [#mum]
+	hAdc2dMap->GetXaxis()->CenterTitle();
+	hAdc2dMap->GetYaxis()->SetTitleOffset(1.8);
+	hAdc2dMap->GetYaxis()->SetTitle("#mum");	
+	hAdc2dMap->GetYaxis()->CenterTitle();	
+	hAdc2dMap->SetMaximum(th2DupLimit);
+	hAdc2dMap->SetMinimum(th2DlowLimit);		
+
+      TCanvas *cBeamPos = new TCanvas("cBeamPos", "Beam Position", 800 ,800);	
+	cBeamPos->cd();
+      cBeamPos->SetCanvasSize(750, 750);
+      cBeamPos->SetLeftMargin(0.12);
+      cBeamPos->SetRightMargin(0.12);
+      cBeamPos->SetTopMargin(0.1);
+      cBeamPos->SetBottomMargin(0.1);
+	cBeamPos->SetTickx();
+	cBeamPos->SetTicky();
+	hAdc2dMap->Draw("COLZ");	//draw 72*72 2d map
+	char *beamPositionPng =Form("pd1png/beamPositionChip%dFrame%d.png",ich, iframe);
+      cBeamPos->SaveAs(beamPositionPng);
+	delete cBeamPos;
+
+       double cnt;
+       TH1D *beamProfileX=new TH1D("beamProfileX", "Beam Profile", 72, 0*pitch, 72*pitch);		
+	 for(int icol = 0; icol<72; icol++){
+		pixelValue=0;
+		pixelMean=0;
+		cnt=0;
+		for(int irow = 1; irow < 71; irow++){
+			pixelValue = hAdc2dMap->GetBinContent(icol+1, irow+1);
+			if(pixelValue<upLimit & pixelValue>lowLimit){
+				pixelMean = pixelMean + pixelValue;			
+				cnt++;
+			}
+		}
+		if(cnt!=0){
+			pixelMean = pixelMean/cnt;
+		}
+	//	cout<<cnt<<"\t";
+	//	cout<<pixelMean<<endl;
+		beamProfileX->SetBinContent(icol+1, pixelMean);
+	}
+	beamProfileX->GetXaxis()->SetTitle("Position [#mum]");
+	beamProfileX->GetXaxis()->CenterTitle();
+	beamProfileX->GetYaxis()->SetTitle("Amplitude");
+	beamProfileX->GetYaxis()->SetTitleOffset(1.2);
+	beamProfileX->GetYaxis()->CenterTitle();
+	beamProfileX->SetLineColor(1);
+	beamProfileX->SetLineWidth(2);
+      TCanvas *cBeamProfile = new TCanvas("cBeamProfile", "Beam Profile", 700 ,600);	
+	beamProfileX->Draw();//draw 1d profile
+	beamProfileX->SetTitle("");
+	cBeamProfile->SetTickx();
+	cBeamProfile->SetTicky();
+	//beamProfileX->Fit("gaus","R","",0,2000);//fit beamProfileX, no show parameter
+	beamProfileX->Fit("gaus");//fit beamProfileX
+
+	char *beamProfilePng =Form("pd1png/beamProfileChip%dFrame%d.png",ich, iframe);
+        cBeamProfile->SaveAs(beamProfilePng);
+	//char *beamProfilePdf =Form("pd1png/beamProfileChip%dFrame%d.pdf",ich, iframe);
+    	//cBeamProfile->SaveAs(beamProfilePdf);
+	delete cBeamProfile;	
+
+
+}
+///////////////////for pd1 test, end of function:beamProfile_pd1////////////////////////////////////////////////////////
+//////////////////////////////////////////////lizili test  20190107//////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -9814,281 +10037,126 @@ void beamPosFit_pd1(char *pedeFile, int ich, int iframe, double upLimit, double 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////new for pd1 test, begin of function:beamPosFit_pd1/////////////////////////
-// void beamPosFit_pd1(char *pedeFile, int ich, int iframe, double upLimit, double lowLimit)
-//    {
+/////////////////////////new for pd1 test, begin of function:beamPosGausFit_pd1///////////////////////////////////////////
+void beamPosGausFit_pd1(char *pedeFile, int ich, int iframe, double upLimit, double lowLimit)
+   {
+   	pd1Pede pede;
+    pede.setup(pedeFile);
+	gStyle->SetOptStat(0);
+	gStyle->SetOptFit(1111);
 
-//          pd1Pede pede;
-//         pede.setup(pedeFile); 
+	int nTopMetalChips=pd1.adcCha();
+	int nPixelsOnChip=pd1.nPix();        
+    int nFrames=pd1.nFrame();
+    double arry2dmap[72][72]; 
+    int location_Num[72];  
+    int Del_width =5; 
 
-// 	gStyle->SetOptStat(0);
-// 	gStyle->SetOptFit(1);
-
-// 	int nTopMetalChips=pd1.adcCha();
-// 	int nPixelsOnChip=pd1.nPix();        
-//         int nFrames=pd1.nFrame();
-        
-
-// 	double rowSum;
-// 	double pixelValue;
-// 	double pixelMean;
-// 	double pixelSigma2;
-
-// 	double pitch = 83;
-// 	double b;
-// 	double k;
-
-// 	double di;
-// 	double pointX, pointY; 
-// 	double diMean=0;
-// 	double diRMS=0;
-// 	double resol=0;
-// 	double resolMean=0;
-// 	double resolRMS=0;
+	double rowSum;
+	double pixelValue;
+	double pixelMean;
+	double pixelRef;
+	double pitch = 83;
+	int binMove=0;
 
 
-//         pd1.getChaDat(ich);
-//         double adc_value;
-//         int binX;
-//         int binY;
+        pd1.getChaDat(ich);
+        double adc_value;
+        int binX;
+        int binY;
 
-// 	double th2DupLimit = 25;
-// 	double th2DlowLimit = 0;
+        double th2DupLimit = 10;
+        double th2DlowLimit = -10;
+
+	  TString hist2dName;
+        hist2dName = "hAdc2dMap_iframe"; //hist2dName += iframe;
+        TH2D *hAdc2dMap= new TH2D(hist2dName, ";pixel row index;pixel column index", 72, 0*pitch, 72*pitch, 72, 0*pitch, 72*pitch);
+
+          for(int ipixel=0;ipixel<pd1.nPix();ipixel++){        
+            binX = ipixel/72;
+            binY = ipixel%72;
+           adc_value = 0;
+            for(int isample=0;isample<pd1.samPerPix();isample++){
+                adc_value+=pd1.chaDat[iframe*pd1.samPerPix()*pd1.nPix()+ipixel*pd1.samPerPix()+isample];
+            }
+            adc_value/=(double)pd1.samPerPix();
+            adc_value-=pede.meanPed[ich*pd1.nPix()+ipixel];   
+            // hAdc2dMap->SetBinContent(binX+1,binY+1,adc_value); 
+            arry2dmap[binY][binX] = adc_value;
+        }
+
+        //resort the hAdc2dMap
+        //get the largest adc_value of every row
+          for(int i=0;i<72;i++){
+          // cout << "Max element: " << *max_element(arry2dmap[i], arry2dmap[i]+ sizeof(arry2dmap[i])/sizeof(arry2dmap[i][0])) << "\n";
+          // cout << "Max element location: " << distance(arry2dmap[i], max_element(arry2dmap[i], arry2dmap[i] + sizeof(arry2dmap[i])/sizeof(arry2dmap[i][0]))) << "\n";
+          location_Num[i] = distance(arry2dmap[i], max_element(arry2dmap[i], arry2dmap[i] + sizeof(arry2dmap[i])/sizeof(arry2dmap[i][0]))) ;
+
+         //keep the largest Num +- width
+
+        for(int m = 0; m < location_Num[i] - Del_width; m++)
+        {
+         arry2dmap[i][m]=0;
+        }
+
+        for(int n = location_Num[i] + Del_width + 1; n < 72; n++)
+        {
+         arry2dmap[i][n]=0;
+        }
+
+      	}
+
+      	//give to the hAdc2dMap
+      	for (int k = 0; k < 72; k++)
+    {
+      for (int l = 0; l < 72; l++)
+      {
+		hAdc2dMap->SetBinContent(l+1,k+1,arry2dmap[k][l]); 
+      }
+   }
 
 
-
-
-
-// 	TString hist2dName;
-//         hist2dName = "hAdc2dMap_iframe"; hist2dName += iframe;
-//         TH2D *hAdc2dMap= new TH2D(hist2dName, "pd1 ADC 2d Map;pixel row index;pixel column index", 72, 0, 72, 72, 0, 72);
-
-
-// /////////////////////////////////////////////////////////////////////////////
-//         // for(int ipixel=0;ipixel<pd1.nPix();ipixel++){        
-//         //     binX = ipixel/72;
-//         //     binY = ipixel%72;
-//         //     adc_value=pd1.chaDat[ipixel*pd1.nFrame()+iframe];         
-//         //     hAdc2dMap->SetBinContent(binX+1,binY+1,adc_value);            
-//         // }
-// /////////////////////////////////////////////////////////////////////////////       
-
-// /////////////////////////////////////////////////////////////////////////////
-//         for(int ipixel=0;ipixel<pd1.nPix();ipixel++){        
-//             binX = ipixel/72;
-//             binY = ipixel%72;
-//            adc_value = 0;
-//             for(int isample=0;isample<pd1.samPerPix();isample++){
-//                 adc_value+=pd1.chaDat[iframe*pd1.samPerPix()*pd1.nPix()+ipixel*pd1.samPerPix()+isample];
-//             }
-//             adc_value/=(double)pd1.samPerPix();
-//             adc_value-=pede.meanPed[ich*pd1.nPix()+ipixel];  
-//             // if(adc_value<0){
-//             // 	adc_value=0;
-//             // }     
-//             //cout<<adc_value<<endl;   
-//             hAdc2dMap->SetBinContent(binX+1,binY+1,adc_value);            
-//         }
-// ////////////////////////////////////////////////////////////////////////////
-
-
-// 	TGraphErrors ge;
-// 	TGraphErrors geRota;	
-// 	int iPoint=0;
-//         for(int irow = 1; irow < 71; irow++){
-//         	rowSum = 0;
-// 		pixelMean = 0;
-// 		pixelSigma2 =0;
-//          for(int icol = 0; icol < 72; icol++){
-// 		pixelValue = hAdc2dMap->GetBinContent(icol+1, irow+1);
-// 	      if(pixelValue<upLimit & pixelValue>lowLimit){
-// 		rowSum = rowSum + pixelValue;		
-// 		}			
-// 		}
-// 	    for(int icol = 0; icol<72; icol++){
-// 		pixelValue = hAdc2dMap->GetBinContent(icol+1, irow+1);
-// 	     if(pixelValue<upLimit & pixelValue>lowLimit){
-// 		pixelMean = pixelMean+pixelValue/rowSum*icol*pitch;
-
-// 		}
-
-// 		}
-
-// 	    for(int icol = 0; icol<72; icol++){
-// 		pixelValue = hAdc2dMap->GetBinContent(icol+1, irow+1);
-// 	     if(pixelValue<upLimit & pixelValue>lowLimit){
-// 		pixelSigma2 = pixelSigma2 + (pixelValue/rowSum)*((icol+1)*pitch-pixelMean)*((icol+1)*pitch-pixelMean);
-
-// 		}
-
-// 		}
+       TH1D *beamProfileX=new TH1D("beamProfileX", "Beam Profile", 72, 0*pitch, 72*pitch);		
+	
+	for(int irow = 36; irow < 37; irow++){
+        	// rowSum = 0;
+		// pixelMean = 0;
+      	for(int icol = 0; icol < 72; icol++){
+			pixelValue = hAdc2dMap->GetBinContent(icol+1, irow+1);
+	  //     	if(pixelValue<upLimit & pixelValue>lowLimit){
+			// 	rowSum = rowSum + pixelValue;		
+			// }	
+			beamProfileX->SetBinContent(icol+1, pixelValue);		
+		}
 		
-// 		ge.SetPoint(iPoint, (irow+1)*pitch, pixelMean );
-// //		ge.SetPointError(iPoint, 0, sqrt(pixelSigma2));
-// 		ge.SetPointError(iPoint, 0, 0);
-// 		geRota.SetPoint(iPoint, pixelMean, (irow+1)*pitch );
-// //		geRota.SetPointError(iPoint, sqrt(pixelSigma2), 0);
-// 		geRota.SetPointError(iPoint, 0, 0);
-// 		iPoint++;
-
-// 	}
+	}
 
 
+	beamProfileX->GetXaxis()->SetTitle("Position [#mum]");
+	beamProfileX->GetXaxis()->CenterTitle();
+	beamProfileX->GetYaxis()->SetTitle("Amplitude");
+	beamProfileX->GetYaxis()->SetTitleOffset(1.2);
+	beamProfileX->GetYaxis()->CenterTitle();
+	beamProfileX->SetLineColor(1);
+	beamProfileX->SetLineWidth(2);
+      TCanvas *cBeamProfile = new TCanvas("cBeamProfile", "Beam Profile", 700 ,600);	
+	beamProfileX->Draw();//draw 1d profile
+	beamProfileX->SetTitle("");
+	cBeamProfile->SetTickx();
+	cBeamProfile->SetTicky();
+	//beamProfileX->Fit("gaus","R","",0,2000);//fit beamProfileX, no show parameter
+	beamProfileX->Fit("gaus");//fit beamProfileX
+
+	char *beamProfilePng =Form("pd1png/beamProfile_oneline_Chip%dFrame%d.png",ich, iframe);
+        cBeamProfile->SaveAs(beamProfilePng);
+	//char *beamProfilePdf =Form("pd1png/2line37_beamProfile_oneline_Chip%dFrame%d.pdf",ich, iframe);
+    	//cBeamProfile->SaveAs(beamProfilePdf);
+	delete cBeamProfile;	
 
 
-
-// 	TF1 *fit1 = new TF1("fit1", "pol1", 2*pitch, 71*pitch);
-
-//         ge.Fit("fit1", "QR");
-	
-
-// // 
-
-// 	b = fit1->GetParameter(0);
-// 	k = fit1->GetParameter(1);
-
-// 	diMean = 0;
-// 	diRMS = 0;
-// 	iPoint = 0;
-	
-//         for(int irow = 1; irow < 71; irow++){
-      
-// 	ge.GetPoint(iPoint,pointX,pointY);
-
-// 	di = (pointY-(k*(irow+1)*pitch+b))*cos(atan(k));
-	
-// 	diMean = diMean + di;
-// 	diRMS = diRMS + di*di;
-// 	iPoint++;
- 
-//         }
-
-
-// 	diRMS = sqrt(abs(diRMS-diMean*diMean/70)/(70-1));
-// 	diMean = diMean/70;
-// 	resol = diRMS/sqrt(70);
-
-
-// 	cout<<"resol: "<<resol<<endl;
-
-// 	TString hist2dNameRotat;
-//         hist2dNameRotat = "hAdc2dMap_iframe"; hist2dNameRotat += iframe;
-
-//         TH2D *hAdc2dMapRotat= new TH2D(hist2dNameRotat, "", 72, 0*pitch, 72*pitch, 72, 0*pitch, 72*pitch);
-// /////////////////////////////////////////////////////////////////////////////
-//   //       for(int ipixel=0;ipixel<pd1.nPix();ipixel++){        
-//   //           binX = ipixel/72;
-//   //           binY = ipixel%72;
-//   //           adc_value=pd1.chaDat[ipixel*pd1.nFrame()+iframe];   
-// 		// if(adc_value>upLimit){
-// 		// 	adc_value = th2DlowLimit-1;		
-// 		// }         
-//   //           hAdc2dMapRotat->SetBinContent(binY+1,binX+1,adc_value);            
-//   //       }
-// /////////////////////////////////////////////////////////////////////////////
-
-// /////////////////////////////////////////////////////////////////////////////
-//         for(int ipixel=0;ipixel<pd1.nPix();ipixel++){        
-//             binX = ipixel/72;
-//             binY = ipixel%72;
-//            adc_value = 0;
-//             for(int isample=0;isample<pd1.samPerPix();isample++){
-//                 adc_value+=pd1.chaDat[iframe*pd1.samPerPix()*pd1.nPix()+ipixel*pd1.samPerPix()+isample];
-//             }
-//             adc_value/=(double)pd1.samPerPix();
-//             adc_value-=pede.meanPed[ich*pd1.nPix()+ipixel];
-//             //cout<<adc_value<<endl;  
-//             // if(adc_value<0){
-//             // 	adc_value=0;
-//             // }       
-//             hAdc2dMapRotat->SetBinContent(binX+1,binY+1,adc_value);            
-//         }
-// ////////////////////////////////////////////////////////////////////////////
-
-
-// 	TString hist2dNameRotat90;
-//         hist2dNameRotat90 = "hAdc2dMaRotat90";
-//         TH2D *hAdc2dMapRotat90= new TH2D(hist2dNameRotat90, "", 72, 0*pitch, 72*pitch, 72, 0*pitch, 72*pitch);
-
-
-//         for(int irow = 0; irow < 72; irow++){
-//             for(int icol = 0; icol < 72; icol++){
-// 		hAdc2dMapRotat90->SetBinContent(irow+1, icol+1, hAdc2dMapRotat->GetBinContent(icol+1, irow+1));
-	    	
-// 		}
-
-
-// 	}
-
-	
-
-// 	// hAdc2dMapRotat90->GetXaxis()->SetTitle("x [#mum]");
-// 	// hAdc2dMapRotat90->GetXaxis()->CenterTitle();
-// 	// //hAdc2dMapRotat90->GetXaxis()->SetRangeUser(-20, 6000);
-// 	// hAdc2dMapRotat90->GetYaxis()->SetTitleOffset(1.8);
-// 	// hAdc2dMapRotat90->GetYaxis()->SetTitle("z [#mum]");	
-// 	// hAdc2dMapRotat90->GetYaxis()->CenterTitle();	
-// 	// //hAdc2dMapRotat90->GetYaxis()->SetRangeUser(-20, 6000);
-// 	// hAdc2dMapRotat90->SetMaximum(th2DupLimit);
-// 	// hAdc2dMapRotat90->SetMinimum(th2DlowLimit);	
-
-// 	hAdc2dMapRotat->GetXaxis()->SetTitle("x [#mum]");
-// 	hAdc2dMapRotat->GetXaxis()->CenterTitle();
-// 	//hAdc2dMapRotat90->GetXaxis()->SetRangeUser(-20, 6000);
-// 	hAdc2dMapRotat->GetYaxis()->SetTitleOffset(1.8);
-// 	hAdc2dMapRotat->GetYaxis()->SetTitle("z [#mum]");	
-// 	hAdc2dMapRotat->GetYaxis()->CenterTitle();	
-// 	//hAdc2dMapRotat90->GetYaxis()->SetRangeUser(-20, 6000);
-// 	hAdc2dMapRotat->SetMaximum(th2DupLimit);
-// 	hAdc2dMapRotat->SetMinimum(th2DlowLimit);		
-
-//         TCanvas *cBeamPosFit = new TCanvas("cBeamPosFit", "Beam Position Fit", 800 ,800);
-
-	
-// 	cBeamPosFit->cd();
-//         cBeamPosFit->SetCanvasSize(750, 750);
-//     cBeamPosFit->SetLeftMargin(0.12);
-//  cBeamPosFit->SetRightMargin(0.12);
-//   cBeamPosFit->SetTopMargin(0.1);
-//   cBeamPosFit->SetBottomMargin(0.1);
-// 	cBeamPosFit->SetTickx();
-// 	cBeamPosFit->SetTicky();
-
-// 	//hAdc2dMapRotat90->Draw("COLZ");
-// 	hAdc2dMapRotat->Draw("COLZ");
-	
-
-// 	geRota.Draw("same p*");
-
-
-//      /*   TF1 *fit1Rota = new TF1("fit1Rota", "1/[0]*x-[1]/[0]", pitch, 73*pitch);
-// 	fit1Rota->SetParameter(0,k);
-// 	fit1Rota->SetParameter(1,b);
-// 	fit1Rota->Draw("same");*/
-
-// 	TGraph gPoint;
-// 	iPoint = 0;
-//        for(int irow = 1; irow < 71; irow++){
-
-//         gPoint.SetPoint(iPoint, (irow+1)*pitch*k+b, (irow+1)*pitch);
-// 	iPoint++;
-
-// 	}
-// 	gPoint.Draw("same c");
-// 	gPoint.SetLineColor(2);
-// 	gPoint.SetLineWidth(4);
-
-// 	char *beamPosFitNamePng =Form("pd1png/beamPositionFitChip%dFrame%d.png",ich, iframe);
-//         cBeamPosFit->SaveAs(beamPosFitNamePng);
-
-// 	char *beamPosFitNamePdf =Form("pd1png/beamPositionFitChip%dFrame%d.pdf",ich, iframe);
-//         cBeamPosFit->SaveAs(beamPosFitNamePdf);
-// 	delete cBeamPosFit;
-
-// } 
-
-//////////////////for pd1 test, end of function:beamPosFit_pd1/////////////////////////////////
-//////////////////////////////////////////////lizili test  20190103/////////////////////////////
+}
+///////////////////for pd1 test, end of function:beamPosGausFit_pd1////////////////////////////////////////////////////////
+//////////////////////////////////////////////lizili test  20190107//////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

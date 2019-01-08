@@ -11,10 +11,16 @@
 #include "rootlib.h"
 
 
-int pd1_analysis_test(char *fn, char *pedeFile, int ich, int iframe, double upLimit, double lowLimit ){
+int pd1_analysis_test(const char *fn, const char *pedeFile, int ich, int iframe, double upLimit, double lowLimit)
+{
+
+    char dataInput[200];
+    char pedeInput[200];
+    sprintf(dataInput,"%s.pd1",fn);
+    sprintf(pedeInput,"%s.txt",pedeFile);
 
     pd1Debug pd1d;
-	  pd1d.read(fn);
+	  pd1d.read(dataInput);
 
     // pd3d.noiseRange();
 //       pd3d.drawRow(ich, iframe);
@@ -22,8 +28,9 @@ int pd1_analysis_test(char *fn, char *pedeFile, int ich, int iframe, double upLi
 //   pd3d.fitBeamError(ich);
 //    pd3d.beamPosResol(ich, upLimit, lowLimit);
 //     pd3d.beamPosResolCheck(ich, upLimit, lowLimit);
-pd1d.beamPosFit_pd1(pedeFile, ich, iframe, upLimit, lowLimit);
-//pd3d.beamProfile(ich, iframe, upLimit, lowLimit);
+// pd1d.beamPosFit_pd1(pedeInput, ich, iframe, upLimit, lowLimit);
+pd1d.beamProfile_pd1(pedeInput, ich, iframe, upLimit, lowLimit);
+// pd1d.beamPosGausFit_pd1(pedeInput, ich, iframe, upLimit, lowLimit);//for single row fit
 //pd3d.framePosResol(ich, iframe, upLimit, lowLimit);
 //pd3d.beamIntensityResol(ich, upLimit, lowLimit);
 //pd3d.beamSize(ich, upLimit, lowLimit);
